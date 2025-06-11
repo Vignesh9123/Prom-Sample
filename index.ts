@@ -3,6 +3,12 @@ import type { NextFunction, Request, Response } from 'express'
 import promClient from 'prom-client'
 const app = express()
 
+export const httpRequestDurationMicroseconds = new promClient.Histogram({
+    name: 'http_request_duration_ms',
+    help: 'Duration of HTTP requests in ms',
+    labelNames: ['method', 'route', 'code'],
+    buckets: [0.1, 5, 15, 50, 100, 300, 500, 1000, 3000, 5000] // Define your own buckets here
+});
 
 
 const requestCounter = new promClient.Counter({
@@ -13,12 +19,19 @@ const requestCounter = new promClient.Counter({
 
 
 const reqMiddleware = (req: Request, res: Response, next: NextFunction)=>{
+    const start = Date.now();
     res.on('finish', () => {
         requestCounter.inc({
             method: req.method,
             route: req.route? req.route.path: req.route,
             status_code: res.statusCode
     })
+    httpRequestDurationMicroseconds.observe({
+        method: req.method,
+        route: req.route ? req.route.path : req.path,
+        code: res.statusCode,
+        
+    }, Date.now() - start);
 })
 
 next()
